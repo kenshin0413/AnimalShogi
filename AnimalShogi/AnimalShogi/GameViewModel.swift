@@ -235,5 +235,6 @@ final class GameViewModel: ObservableObject {
         defaults.set(losses, forKey: "losses")
         defaults.set(currentStreak, forKey: "currentStreak")
         defaults.set(bestStreak, forKey: "bestStreak")
+        ReviewRequestManager.requestIfEligible()
     }
 }
