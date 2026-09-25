@@ -1,0 +1,95 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+    function validName() {
+      return request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 10;
+    }
+
+    match /profiles/{uid} {
+      allow read: if signedIn();
+      allow create: if isOwner(uid) && validName()
+        && request.resource.data.rating == 1000
+        && request.resource.data.wins == 0
+        && request.resource.data.losses == 0;
+      allow update: if isOwner(uid) && validName()
+        && request.resource.data.rating >= 0
+        && request.resource.data.rating <= resource.data.rating + 32
+        && request.resource.data.rating >= resource.data.rating - 32
+        && request.resource.data.wins >= resource.data.wins
+        && request.resource.data.wins <= resource.data.wins + 1
+        && request.resource.data.losses >= resource.data.losses
+        && request.resource.data.losses <= resource.data.losses + 1
+        && request.resource.data.draws >= resource.data.draws
+        && request.resource.data.draws <= resource.data.draws + 1
+        && (
+          request.resource.data.nameDisabled == resource.data.nameDisabled
+          || (resource.data.nameDisabled == true
+            && request.resource.data.nameDisabled == false
+            && request.resource.data.nameKey != resource.data.nameKey)
+        );
+      allow delete: if false;
+
+      match /blocks/{blockedUID} {
+        allow read: if isOwner(uid);
+        allow create, delete: if isOwner(uid) && blockedUID != uid;
+        allow update: if false;
+      }
+    }
+
+    match /matchQueue/{uid} {
+      allow read: if signedIn();
+      allow create: if isOwner(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.status == "waiting";
+      allow update: if signedIn() && (
+        isOwner(uid) ||
+        (resource.data.status == "waiting"
+          && request.resource.data.status == "matched"
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "matchID", "updatedAt"]))
+      );
+      allow delete: if isOwner(uid);
+    }
+
+    match /matches/{matchID} {
+      function isPlayer() {
+        return signedIn() && request.auth.uid in resource.data.players;
+      }
+      allow read: if isPlayer();
+      allow create: if signedIn()
+        && request.resource.data.players is list
+        && request.resource.data.players.size() == 2
+        && request.auth.uid in request.resource.data.players
+        && request.resource.data.player1Millis == 420000
+        && request.resource.data.player2Millis == 420000
+        && request.resource.data.status == "active";
+      allow update: if isPlayer()
+        && request.resource.data.players == resource.data.players
+        && request.resource.data.player1UID == resource.data.player1UID
+        && request.resource.data.player2UID == resource.data.player2UID
+        && request.resource.data.moveNumber >= resource.data.moveNumber
+        && request.resource.data.moveNumber <= resource.data.moveNumber + 1
+        && request.resource.data.player1Millis <= resource.data.player1Millis
+        && request.resource.data.player2Millis <= resource.data.player2Millis
+        && request.resource.data.player1Millis >= 0
+        && request.resource.data.player2Millis >= 0
+        && (
+          request.auth.uid == resource.data.currentUID
+          || (request.resource.data.status == "finished" && request.resource.data.resignedBy == request.auth.uid)
+          || (request.resource.data.status == "finished" && request.time > resource.data.turnStartedAt + duration.value(60, 's'))
+        );
+      allow delete: if false;
+    }
+
+    match /reports/{reportID} {
+      allow create: if signedIn()
+        && request.resource.data.reporterUID == request.auth.uid
+        && request.resource.data.reportedUID != request.auth.uid
+        && request.resource.data.reason in ["inappropriate_name", "personal_information", "other"];
+      allow read, update, delete: if false;
+    }
+  }
+}

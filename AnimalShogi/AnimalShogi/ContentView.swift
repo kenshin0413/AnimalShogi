@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var showingStats = ProcessInfo.processInfo.arguments.contains("-showStats")
     @State private var showingExitConfirmation = false
     @State private var showingInteractiveTutorial = false
+    @State private var showingOnlinePlay = ProcessInfo.processInfo.arguments.contains("-showOnline")
     @State private var availableUpdate: AppUpdate?
     @State private var showingUpdateAlert = false
     @AppStorage("hasSeenInteractiveTutorial") private var hasSeenInteractiveTutorial = false
@@ -31,7 +32,7 @@ struct ContentView: View {
                                         ProgressView().controlSize(.regular).tint(Color(red: 0.68, green: 0.20, blue: 0.17))
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text("おすすめを").font(.system(size: 15, weight: .bold, design: .rounded))
-                                            Text("かんがえています…").font(.system(size: 17, weight: .black, design: .rounded))
+                                            Text("考えています…").font(.system(size: 17, weight: .black, design: .rounded))
                                         }
                                     }
                                     .foregroundStyle(Color(red: 0.60, green: 0.18, blue: 0.16))
@@ -48,6 +49,7 @@ struct ContentView: View {
                     .transition(.opacity.combined(with: .move(edge: .trailing)))
                 } else {
                     HomeView(start: { game.restart(); withAnimation(.easeInOut(duration: 0.28)) { isPlaying = true } },
+                             startOnline: { showingOnlinePlay = true },
                              showTutorial: {
                                  AnalyticsService.tutorialStarted(source: "home")
                                  showingInteractiveTutorial = true
@@ -73,13 +75,14 @@ struct ContentView: View {
                     showingInteractiveTutorial = false
                 }
             }
+            .fullScreenCover(isPresented: $showingOnlinePlay) { OnlinePlayView() }
             .confirmationDialog("ゲームを やめる？", isPresented: $showingExitConfirmation, titleVisibility: .visible) {
-                Button("ホームへ もどる", role: .destructive) {
+                Button("ホームへ戻る", role: .destructive) {
                     game.resetForHome()
                     withAnimation(.easeInOut(duration: 0.25)) { isPlaying = false }
                 }
-                Button("まだ あそぶ", role: .cancel) {}
-            } message: { Text("いまの ゲームは おわりになるよ") }
+                Button("まだ遊ぶ", role: .cancel) {}
+            } message: { Text("今のゲームは 終わりになるよ") }
             .alert("あたらしいバージョンが あるよ", isPresented: $showingUpdateAlert, presenting: availableUpdate) { update in
                 Button("アップデート") {
                     AnalyticsService.appUpdateEvent("app_update_opened", storeVersion: update.storeVersion)
@@ -89,7 +92,7 @@ struct ContentView: View {
                     AnalyticsService.appUpdateEvent("app_update_later", storeVersion: update.storeVersion)
                 }
             } message: { _ in
-                Text("もっと あそびやすくなったよ。App Storeで アップデートしよう！")
+                Text("もっと遊びやすくなったよ。App Storeでアップデートしよう！")
             }
             .onAppear {
                 let forceTutorial = ProcessInfo.processInfo.arguments.contains("-showTutorial")
@@ -136,8 +139,8 @@ struct ContentView: View {
             HStack(spacing: 7) {
                 if game.isCPUThinking || game.isFindingHint { ProgressView().controlSize(.small) }
                 Circle().fill(game.hintedMove != nil ? Color.yellow : (game.isCPUThinking || game.isFindingHint ? Color.orange : Color.green)).frame(width: 8, height: 8)
-                Text(game.isFindingHint ? "おすすめを かんがえています…" : (game.hintedMove != nil ? "このこま！ → きいろのマス" : (game.isCPUThinking ? "CPUがかんがえています…" : "あなたのばん")))
-                if game.hintedMove == nil && !game.isFindingHint { Text("・ \(game.state.turnNumber)ばんめ").foregroundStyle(.secondary) }
+                Text(game.isFindingHint ? "おすすめを 考えています…" : (game.hintedMove != nil ? "この駒！ → 黄色のマス" : (game.isCPUThinking ? "CPUが考えています…" : "あなたの番")))
+                if game.hintedMove == nil && !game.isFindingHint { Text("・ \(game.state.turnNumber)手目").foregroundStyle(.secondary) }
             }
             .font(.system(size: 15, weight: .bold, design: .rounded))
             .foregroundStyle(Color(red: 0.67, green: 0.22, blue: 0.20))
@@ -145,7 +148,7 @@ struct ContentView: View {
             .background(.white.opacity(0.88), in: Capsule())
         case .won(let winner, let reason):
             VStack(spacing: 1) {
-                Text(winner == .human ? "あなたのかち！" : "CPUのかち")
+                Text(winner == .human ? "あなたの勝ち！" : "CPUの勝ち")
                     .font(.system(size: 22, weight: .black, design: .rounded))
                 Text(reason.description).font(.caption.bold())
             }.foregroundStyle(Color(red: 0.67, green: 0.22, blue: 0.20))
@@ -154,10 +157,10 @@ struct ContentView: View {
 
     private var actionBar: some View {
         HStack(spacing: 10) {
-            ActionButton(title: "もどす", icon: "arrow.uturn.backward", enabled: game.canUndo, action: game.undoTurn)
-            ActionButton(title: game.isFindingHint ? "かんがえちゅう" : "ヒント", icon: "lightbulb.fill",
+            ActionButton(title: "戻す", icon: "arrow.uturn.backward", enabled: game.canUndo, action: game.undoTurn)
+            ActionButton(title: game.isFindingHint ? "考え中" : "ヒント", icon: "lightbulb.fill",
                          enabled: game.canInteract && !game.isFindingHint, action: game.requestHint)
-            ActionButton(title: "もういちど", icon: "arrow.counterclockwise", enabled: !game.isCPUThinking, action: game.restart)
+            ActionButton(title: "もう一度", icon: "arrow.counterclockwise", enabled: !game.isCPUThinking, action: game.restart)
                 .accessibilityIdentifier("restartButton")
         }.frame(maxWidth: 390)
     }
@@ -272,7 +275,7 @@ private struct BoardSquare: View {
                     RoundedRectangle(cornerRadius: 11)
                         .stroke(Color.yellow, lineWidth: 5).padding(4)
                         .shadow(color: .orange, radius: 6)
-                    Text("このこま！")
+                    Text("この駒！")
                         .font(.system(size: 9, weight: .black, design: .rounded))
                         .foregroundStyle(Color(red: 0.42, green: 0.20, blue: 0.02))
                         .padding(.horizontal, 7).padding(.vertical, 3)
@@ -285,7 +288,7 @@ private struct BoardSquare: View {
                         .stroke(Color(red: 0.92, green: 0.16, blue: 0.10), lineWidth: 4)
                         .padding(5)
                         .shadow(color: .yellow.opacity(0.9), radius: 5)
-                    Text("とれる！")
+                    Text("取れる！")
                         .font(.system(size: 9, weight: .black, design: .rounded))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 7).padding(.vertical, 3)
@@ -308,7 +311,7 @@ private struct HandView: View {
 
     var body: some View {
         HStack(spacing: 7) {
-            Text(player == .cpu ? "CPU" : "もちごま")
+            Text(player == .cpu ? "CPU" : "持ち駒")
                 .font(.system(size: 13, weight: .bold, design: .rounded))
                 .foregroundStyle(Color(red: 0.65, green: 0.20, blue: 0.18))
             let available = types.filter { state.handCount(for: player, type: $0) > 0 }
@@ -352,6 +355,7 @@ private struct HandView: View {
 
 private struct HomeView: View {
     let start: () -> Void
+    let startOnline: () -> Void
     let showTutorial: () -> Void
     let showSettings: () -> Void
     let showStats: () -> Void
@@ -382,22 +386,31 @@ private struct HomeView: View {
 
             VStack(spacing: 14) {
                 Button(action: start) {
-                    Label("あそぶ", systemImage: "play.fill")
+                    Label("ひとりで遊ぶ", systemImage: "play.fill")
                         .font(.system(size: 20, weight: .black, design: .rounded))
                         .frame(maxWidth: .infinity).padding(.vertical, 15)
                         .background(Color(red: 0.73, green: 0.23, blue: 0.19), in: RoundedRectangle(cornerRadius: 18))
                         .foregroundStyle(.white).shadow(color: .black.opacity(0.16), radius: 7, y: 4)
                 }.buttonStyle(.plain)
 
+                Button(action: startOnline) {
+                    Label("オンラインで遊ぶ", systemImage: "person.2.fill")
+                        .font(.system(size: 18, weight: .black, design: .rounded))
+                        .frame(maxWidth: .infinity).padding(.vertical, 13)
+                        .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 18))
+                        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color(red: 0.73, green: 0.23, blue: 0.19), lineWidth: 2))
+                        .foregroundStyle(Color(red: 0.65, green: 0.19, blue: 0.17))
+                }.buttonStyle(.plain)
+
                 HStack(spacing: 18) {
                     Button(action: showSettings) {
-                        Label("せってい", systemImage: "slider.horizontal.3")
+                        Label("設定", systemImage: "slider.horizontal.3")
                     }
                     Button(action: showTutorial) {
-                        Label("あそびかた", systemImage: "book.closed.fill")
+                        Label("遊び方", systemImage: "book.closed.fill")
                     }
                     Button(action: showStats) {
-                        Label("きろく", systemImage: "chart.bar.fill")
+                        Label("記録", systemImage: "chart.bar.fill")
                     }
                 }
                 .font(.system(size: 14, weight: .bold, design: .rounded))

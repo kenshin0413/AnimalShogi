@@ -43,8 +43,10 @@ struct AnimalPieceCard: View {
         case .lion: CGSize(width: 0.72, height: 0.72)
         case .giraffe: CGSize(width: 0.74, height: 0.62)
         case .elephant: CGSize(width: 0.80, height: 0.70)
-        case .chick: CGSize(width: 1.28, height: 1.04)
-        case .hen: CGSize(width: 1.24, height: 1.00)
+        // The source fish drawings have different transparent margins. These
+        // values make their visible silhouettes occupy the same card width.
+        case .chick: CGSize(width: 1.40, height: 1.00)
+        case .hen: CGSize(width: 1.10, height: 1.00)
         }
     }
 }
